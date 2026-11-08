@@ -61,7 +61,10 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     private var chatOn = false
     private val chatLines = ArrayDeque<String>()
 
-    private val resolutions = listOf("1920x1080", "1280x720", "854x480", "640x360")
+    private val resolutions = listOf(
+        "1920x1080", "1280x720", "854x480", "640x360",   // 16:9
+        "1440x1080", "1280x960", "960x720", "640x480"    // 4:3 (como la app de cámara)
+    )
     private val fpsOptions = listOf("30", "60", "24", "15")
     private val prefs by lazy { getSharedPreferences("rtmp", MODE_PRIVATE) }
     private val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
@@ -111,6 +114,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
 
         StreamHolder.checker = this
         camera = StreamHolder.get(this)
+        applyAspectMode()
         glView.holder.addCallback(this)
 
         if (camera.isStreaming) {   // volvimos a la app mientras seguía transmitiendo
@@ -187,6 +191,24 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         while (chatLines.size > 10) chatLines.removeFirst()
         tvChat.text = chatLines.joinToString("\n")
         if (cbChat.isChecked) tvChat.visibility = View.VISIBLE
+    }
+
+    /**
+     * Hace que el preview conserve la proporción real de la cámara (con barras negras si
+     * hace falta) en vez de estirarla para llenar toda la pantalla. Se llama por reflexión
+     * para no depender de los nombres exactos de la librería.
+     */
+    private fun applyAspectMode() {
+        try {
+            glView.javaClass.methods.firstOrNull { it.name == "setKeepAspectRatio" && it.parameterCount == 1 }
+                ?.invoke(glView, true)
+        } catch (_: Throwable) {}
+        try {
+            val m = glView.javaClass.methods.firstOrNull { it.name == "setAspectRatioMode" && it.parameterCount == 1 }
+            val adjust = m?.parameterTypes?.get(0)?.enumConstants
+                ?.firstOrNull { (it as Enum<*>).name.equals("Adjust", ignoreCase = true) }
+            if (m != null && adjust != null) m.invoke(glView, adjust)
+        } catch (_: Throwable) {}
     }
 
     private fun requestAll() {
@@ -378,6 +400,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     // ------------------------------------------------------------------
     override fun surfaceCreated(holder: SurfaceHolder) {
         camera.replaceView(glView)   // (re)conecta la vista, p. ej. al volver de minimizar
+        applyAspectMode()
         if (hasPermissions() && !camera.isOnPreview) camera.startPreview()
     }
 
