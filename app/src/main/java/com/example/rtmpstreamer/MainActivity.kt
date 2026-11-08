@@ -313,7 +313,15 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         val pipFacing = if (mainIsBack) CameraCharacteristics.LENS_FACING_FRONT
                         else CameraCharacteristics.LENS_FACING_BACK
         val id = cameraIdFor(cm, pipFacing) ?: return
-        texture.setDefaultBufferSize(640, 480)
+        // Se usa la forma real de la cámara (4:3, 16:9, etc.) y el recuadro se ajusta a ella
+        val map = cm.getCameraCharacteristics(id).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val sizes = map?.getOutputSizes(SurfaceTexture::class.java)?.toList().orEmpty()
+        val best = sizes.filter { it.width in 640..1280 && it.height >= 360 }
+            .minByOrNull { Math.abs(it.width * it.height - 800 * 600) }
+        val pw = best?.width ?: 640
+        val ph = best?.height ?: 480
+        texture.setDefaultBufferSize(pw, ph)
+        applyPipScale(pw, ph)
         val surface = Surface(texture)
 
         cm.openCamera(id, object : CameraDevice.StateCallback() {
@@ -338,6 +346,24 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
                 runOnUiThread { Toast.makeText(this@MainActivity, "Error en la segunda cámara ($error)", Toast.LENGTH_LONG).show() }
             }
         }, pipHandler)
+    }
+
+    /**
+     * El filtro mide su tamaño en % del video transmitido. Para que el recuadro
+     * conserve la proporción de la cámara (sin estirarla) se calcula el alto a partir
+     * del ancho, tomando en cuenta la proporción del video de salida.
+     */
+    private fun applyPipScale(pw: Int, ph: Int) {
+        runOnUiThread {
+            val (sw, sh) = resolutions[spRes.selectedItemPosition].split("x").map { it.toInt() }
+            var widthPct = 28f
+            var heightPct = widthPct * (sw.toFloat() / sh) / (pw.toFloat() / ph)
+            if (heightPct > 50f) {            // si queda demasiado alto, se reduce todo proporcionalmente
+                widthPct *= 50f / heightPct
+                heightPct = 50f
+            }
+            pipFilter?.setScale(widthPct, heightPct)
+        }
     }
 
     private fun closePip() {
