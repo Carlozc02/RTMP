@@ -2,6 +2,7 @@ package com.example.rtmpstreamer
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.SurfaceTexture
@@ -108,9 +109,14 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
             override fun onStopTrackingTouch(s: SeekBar?) {}
         })
 
-        camera = RtmpCamera2(glView, this)
+        StreamHolder.checker = this
+        camera = StreamHolder.get(this)
         glView.holder.addCallback(this)
 
+        if (camera.isStreaming) {   // volvimos a la app mientras seguía transmitiendo
+            btnStart.text = "Detener transmisión"
+            tvStatus.text = "EN VIVO"
+        }
         btnStart.setOnClickListener { if (camera.isStreaming) stopStream() else startStream() }
         btnDual.setOnClickListener { if (dualMode) disableDual() else enableDual() }
         findViewById<Button>(R.id.btnSwitch).setOnClickListener { switchCameras() }
@@ -118,7 +124,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         setupChat()
         setupDrawers()
 
-        if (!hasPermissions()) ActivityCompat.requestPermissions(this, permissions, 1)
+        if (!hasPermissions()) requestAll()
     }
 
     // Menús laterales: se abren deslizando desde el borde o con los botones ☰ / 💬,
@@ -183,6 +189,12 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         if (cbChat.isChecked) tvChat.visibility = View.VISIBLE
     }
 
+    private fun requestAll() {
+        val list = permissions.toMutableList()
+        if (Build.VERSION.SDK_INT >= 33) list.add(Manifest.permission.POST_NOTIFICATIONS)
+        ActivityCompat.requestPermissions(this, list.toTypedArray(), 1)
+    }
+
     private fun hasPermissions() = permissions.all {
         ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
     }
@@ -201,7 +213,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
             return
         }
         if (!hasPermissions()) {
-            ActivityCompat.requestPermissions(this, permissions, 1)
+            requestAll()
             return
         }
         prefs.edit().putString("url", url).putInt("bitrate", sbBitrate.progress).apply()
@@ -212,6 +224,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         val videoOk = camera.prepareVideo(w, h, fps, sbBitrate.progress * 1000, 0)
         val audioOk = camera.prepareAudio(128 * 1000, 44100, true)
         if (videoOk && audioOk) {
+            ContextCompat.startForegroundService(this, Intent(this, StreamService::class.java))
             camera.startStream(url)
             btnStart.text = "Detener transmisión"
             tvStatus.text = "Conectando..."
@@ -222,6 +235,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
 
     private fun stopStream() {
         camera.stopStream()
+        stopService(Intent(this, StreamService::class.java))
         btnStart.text = "Iniciar transmisión"
         tvStatus.text = "Detenido"
     }
@@ -237,7 +251,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
             return
         }
         if (!hasPermissions()) {
-            ActivityCompat.requestPermissions(this, permissions, 1)
+            requestAll()
             return
         }
         if (!supportsConcurrentFrontBack()) {
@@ -337,7 +351,8 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     // Preview
     // ------------------------------------------------------------------
     override fun surfaceCreated(holder: SurfaceHolder) {
-        if (hasPermissions()) camera.startPreview()
+        camera.replaceView(glView)   // (re)conecta la vista, p. ej. al volver de minimizar
+        if (hasPermissions() && !camera.isOnPreview) camera.startPreview()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -345,13 +360,21 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        if (camera.isStreaming) stopStream()
-        if (dualMode) disableDual()
-        camera.stopPreview()
+        if (dualMode) {
+            disableDual()
+            Toast.makeText(this, "Doble cámara desactivada al minimizar; vuelve a activarla", Toast.LENGTH_LONG).show()
+        }
+        if (camera.isStreaming) {
+            camera.replaceView(applicationContext)   // sigue transmitiendo sin pantalla
+        } else {
+            camera.stopPreview()
+        }
     }
 
     override fun onDestroy() {
         chat.shutdown()
+        StreamHolder.checker = null
+        if (!camera.isStreaming) StreamHolder.release()
         closePip()
         pipThread.quitSafely()
         super.onDestroy()
