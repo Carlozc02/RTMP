@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import io.github.jwdeveloper.tiktok.TikTokLive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -14,6 +13,9 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -185,6 +187,8 @@ class ChatManager(ctx: Context, private val onLine: (String) -> Unit) : TextToSp
     // que TikTok no cambie su protocolo y del servicio de firma de Euler
     // Stream que usa la librería internamente. Puede fallar sin aviso.
     // ------------------------------------------------------------------
+    // Se usa reflexión a propósito: así el proyecto compila aunque la librería de
+    // TikTok cambie de nombres, y si no funciona solo falla TikTok (con un mensaje).
     private fun connectTiktok(src: String) {
         val myGen = gen
         val user = Regex("@([A-Za-z0-9._]+)").find(src)?.groupValues?.get(1)
@@ -196,9 +200,43 @@ class ChatManager(ctx: Context, private val onLine: (String) -> Unit) : TextToSp
         Thread {
             try {
                 sys("TikTok: conectando a @$user ...")
-                val client = TikTokLive.newClient(user)
-                    .onComment { _, event -> push("TT", event.user.name, event.text) }
-                    .buildAndConnect()
+                val cls = listOf(
+                    "io.github.jwdeveloper.tiktok.TikTokLive",
+                    "io.github.jwdeveloper.tiktok.live.TikTokLive",
+                    "io.github.jwdeveloper.tiktok.client.TikTokLive"
+                ).firstNotNullOfOrNull { runCatching { Class.forName(it) }.getOrNull() }
+                    ?: throw Exception("la librería de TikTok no trae la clase TikTokLive")
+
+                val newClient = cls.getMethod("newClient", String::class.java)
+                var builder: Any = newClient.invoke(null, user)!!
+                val builderType = newClient.returnType
+                val onComment = builderType.methods.first { it.name == "onComment" && it.parameterCount == 1 }
+                val handlerType = onComment.parameterTypes[0]
+
+                val handler = Proxy.newProxyInstance(handlerType.classLoader, arrayOf(handlerType)) { proxy, method, args ->
+                    when (method.name) {
+                        "hashCode" -> System.identityHashCode(proxy)
+                        "equals" -> proxy === args?.firstOrNull()
+                        "toString" -> "TikTokCommentHandler"
+                        else -> {
+                            try {
+                                val event = args?.lastOrNull()
+                                if (event != null) {
+                                    val u = call(event, "getUser")
+                                    val name = u?.let { call(it, "getName") } as? String
+                                    val text = call(event, "getText") as? String
+                                    if (name != null && !text.isNullOrEmpty()) push("TT", name, text)
+                                }
+                            } catch (_: Throwable) {}
+                            null
+                        }
+                    }
+                }
+                builder = onComment.invoke(builder, handler) ?: builder
+
+                val connect = builderType.methods.first { it.name == "buildAndConnect" && it.parameterCount == 0 }
+                val client = connect.invoke(builder)
+                if (client == null) throw Exception("no se pudo crear el cliente")
                 if (gen != myGen) {            // se desconectó mientras conectaba
                     stopTiktok(client)
                 } else {
@@ -206,9 +244,16 @@ class ChatManager(ctx: Context, private val onLine: (String) -> Unit) : TextToSp
                     sys("TikTok: conectado a @$user")
                 }
             } catch (e: Throwable) {
-                if (gen == myGen) sys("TikTok @$user: ${e.message ?: e.javaClass.simpleName} (¿está en vivo?)")
+                val c = (e as? InvocationTargetException)?.targetException ?: e
+                if (gen == myGen) sys("TikTok @$user: ${c.message ?: c.javaClass.simpleName} (¿está en vivo?)")
             }
         }.start()
+    }
+
+    private fun call(target: Any, name: String): Any? {
+        val m: Method = target.javaClass.methods.first { it.name == name && it.parameterCount == 0 }
+        m.isAccessible = true
+        return m.invoke(target)
     }
 
     private fun stopTiktok(client: Any) {
