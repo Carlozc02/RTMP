@@ -1,96 +1,229 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#000000">
+    android:layout_height="match_parent">
 
-    <com.pedro.library.view.OpenGlView
-        android:id="@+id/openGlView"
+    <!-- ===================== CONTENIDO (preview a pantalla completa) ===================== -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:background="#000000">
 
-    <LinearLayout
+        <com.pedro.library.view.OpenGlView
+            android:id="@+id/openGlView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Overlay del chat: solo se ve en tu pantalla, no sale en el stream -->
+        <TextView
+            android:id="@+id/tvChat"
+            android:layout_width="340dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|top"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="64dp"
+            android:layout_marginEnd="8dp"
+            android:background="#88000000"
+            android:padding="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <!-- Botón para abrir el menú de transmisión (también se abre deslizando desde la izquierda) -->
+        <Button
+            android:id="@+id/btnMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_gravity="start|top"
+            android:layout_margin="8dp"
+            android:backgroundTint="#88000000"
+            android:minWidth="56dp"
+            android:text="☰"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
+
+        <!-- Botón para abrir el menú de chats (también se abre deslizando desde la derecha) -->
+        <Button
+            android:id="@+id/btnChatMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_gravity="end|top"
+            android:layout_margin="8dp"
+            android:backgroundTint="#88000000"
+            android:minWidth="56dp"
+            android:text="💬"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp" />
+
+        <!-- Controles siempre a la mano: iniciar/detener y estado -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_margin="12dp"
+            android:background="#88000000"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="6dp">
+
+            <Button
+                android:id="@+id/btnStart"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Iniciar transmisión" />
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="8dp"
+                android:text="Detenido"
+                android:textColor="#FFCC00" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- ===================== MENÚ IZQUIERDO: transmisión y cámaras ===================== -->
+    <ScrollView
         android:layout_width="320dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="#99000000"
-        android:orientation="vertical"
-        android:padding="12dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="URL RTMP (con clave de stream)"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp" />
-
-        <EditText
-            android:id="@+id/etUrl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="rtmp://servidor/live/clave"
-            android:inputType="textUri"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#888888" />
+        android:background="#EE111111">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:padding="12dp">
 
-            <Spinner
-                android:id="@+id/spRes"
-                android:layout_width="0dp"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1" />
+                android:text="Transmisión"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-            <Spinner
-                android:id="@+id/spFps"
-                android:layout_width="90dp"
-                android:layout_height="wrap_content" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="URL RTMP (con clave de stream)"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/etUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="rtmp://servidor/live/clave"
+                android:inputType="textUri"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#888888" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <Spinner
+                    android:id="@+id/spRes"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <Spinner
+                    android:id="@+id/spFps"
+                    android:layout_width="90dp"
+                    android:layout_height="wrap_content" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvBitrate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Bitrate: 2500 kbps"
+                android:textColor="#FFFFFF" />
+
+            <SeekBar
+                android:id="@+id/sbBitrate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="7500"
+                android:progress="2500" />
+
+            <Button
+                android:id="@+id/btnDual"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Modo: 1 cámara" />
+
+            <Button
+                android:id="@+id/btnSwitch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Cambiar cámara" />
         </LinearLayout>
+    </ScrollView>
 
-        <TextView
-            android:id="@+id/tvBitrate"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Bitrate: 2500 kbps"
-            android:textColor="#FFFFFF" />
+    <!-- ===================== MENÚ DERECHO: chats ===================== -->
+    <ScrollView
+        android:layout_width="320dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="#EE111111">
 
-        <SeekBar
-            android:id="@+id/sbBitrate"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:max="7500"
-            android:progress="2500" />
+            android:orientation="vertical"
+            android:padding="12dp">
 
-        <Button
-            android:id="@+id/btnStart"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Iniciar transmisión" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chats"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnDual"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Modo: 1 cámara" />
+            <CheckBox
+                android:id="@+id/cbChat"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:checked="true"
+                android:text="Mostrar chat (solo en tu pantalla)"
+                android:textColor="#FFFFFF" />
 
-        <Button
-            android:id="@+id/btnSwitch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cambiar cámara" />
+            <CheckBox
+                android:id="@+id/cbTts"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Leer chat en voz alta"
+                android:textColor="#FFFFFF" />
 
-        <TextView
-            android:id="@+id/tvStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Detenido"
-            android:textColor="#FFCC00" />
-    </LinearLayout>
-</FrameLayout>
+            <EditText
+                android:id="@+id/etChats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:hint="Pega un link por línea:&#10;twitch.tv/canal&#10;kick.com/canal&#10;youtube.com/watch?v=...&#10;tiktok.com/@usuario/live"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:minLines="4"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#888888"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnChats"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Conectar chats" />
+        </LinearLayout>
+    </ScrollView>
+</androidx.drawerlayout.widget.DrawerLayout>

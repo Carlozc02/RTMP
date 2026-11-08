@@ -11,3 +11,6 @@ Usa la librería open source RootEncoder (Apache 2.0). Sin anuncios, sin límite
 - Bitrate ajustable, incluso en vivo
 - Cámara frontal/trasera, pantalla siempre encendida
 - **Doble cámara**: trasera y delantera a la vez (una grande y la otra en recuadro abajo a la derecha). Requiere Android 11+ y un teléfono que soporte cámaras concurrentes. "Cambiar cámara" intercambia cuál es la grande.
+- **Chat en pantalla + voz**: pega un link por línea (Twitch, Kick, YouTube). Overlay solo visible en tu pantalla (NO sale en la transmisión) y lectura en voz alta con el TTS del teléfono. TikTok (no oficial, puede fallar). Los menús son laterales: se deslizan desde el borde izquierdo (transmisión) y derecho (chats), o con los botones ☰ y 💬.
+
+

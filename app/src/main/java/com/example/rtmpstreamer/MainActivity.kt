@@ -3,6 +3,7 @@ package com.example.rtmpstreamer
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -16,15 +17,20 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.WindowManager
 import android.widget.ArrayAdapter
+import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import com.pedro.common.ConnectChecker
 import com.pedro.encoder.input.gl.render.filters.`object`.SurfaceFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
@@ -43,6 +49,16 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     private lateinit var spRes: Spinner
     private lateinit var spFps: Spinner
     private lateinit var sbBitrate: SeekBar
+
+    // --- Chat overlay + voz ---
+    private lateinit var chat: ChatManager
+    private lateinit var tvChat: TextView
+    private lateinit var cbChat: CheckBox
+    private lateinit var cbTts: CheckBox
+    private lateinit var etChats: EditText
+    private lateinit var btnChats: Button
+    private var chatOn = false
+    private val chatLines = ArrayDeque<String>()
 
     private val resolutions = listOf("1920x1080", "1280x720", "854x480", "640x360")
     private val fpsOptions = listOf("30", "60", "24", "15")
@@ -99,7 +115,72 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         btnDual.setOnClickListener { if (dualMode) disableDual() else enableDual() }
         findViewById<Button>(R.id.btnSwitch).setOnClickListener { switchCameras() }
 
+        setupChat()
+        setupDrawers()
+
         if (!hasPermissions()) ActivityCompat.requestPermissions(this, permissions, 1)
+    }
+
+    // Menús laterales: se abren deslizando desde el borde o con los botones ☰ / 💬,
+    // y se ocultan deslizando de vuelta, tocando fuera o con el botón Atrás.
+    private fun setupDrawers() {
+        val drawer = findViewById<DrawerLayout>(R.id.drawerLayout)
+        drawer.setScrimColor(Color.TRANSPARENT)   // no oscurece el preview
+        findViewById<Button>(R.id.btnMenu).setOnClickListener { drawer.openDrawer(GravityCompat.START) }
+        findViewById<Button>(R.id.btnChatMenu).setOnClickListener { drawer.openDrawer(GravityCompat.END) }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (drawer.isDrawerOpen(GravityCompat.START) || drawer.isDrawerOpen(GravityCompat.END)) {
+                    drawer.closeDrawers()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+    }
+
+    private fun setupChat() {
+        tvChat = findViewById(R.id.tvChat)
+        cbChat = findViewById(R.id.cbChat)
+        cbTts = findViewById(R.id.cbTts)
+        etChats = findViewById(R.id.etChats)
+        btnChats = findViewById(R.id.btnChats)
+
+        etChats.setText(prefs.getString("chats", ""))
+        cbChat.isChecked = prefs.getBoolean("showChat", true)
+        cbTts.isChecked = prefs.getBoolean("tts", false)
+
+        chat = ChatManager(this) { line -> addChatLine(line) }
+        chat.speak = cbTts.isChecked
+
+        cbChat.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean("showChat", checked).apply()
+            tvChat.visibility = if (checked && chatLines.isNotEmpty()) View.VISIBLE else View.GONE
+        }
+        cbTts.setOnCheckedChangeListener { _, checked ->
+            prefs.edit().putBoolean("tts", checked).apply()
+            chat.speak = checked
+        }
+        btnChats.setOnClickListener {
+            if (chatOn) {
+                chat.disconnect()
+                chatOn = false
+                btnChats.text = "Conectar chats"
+            } else {
+                prefs.edit().putString("chats", etChats.text.toString()).apply()
+                chat.connect(etChats.text.toString().lines())
+                chatOn = true
+                btnChats.text = "Desconectar chats"
+            }
+        }
+    }
+
+    private fun addChatLine(line: String) {
+        chatLines.addLast(line)
+        while (chatLines.size > 10) chatLines.removeFirst()
+        tvChat.text = chatLines.joinToString("\n")
+        if (cbChat.isChecked) tvChat.visibility = View.VISIBLE
     }
 
     private fun hasPermissions() = permissions.all {
@@ -270,6 +351,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     }
 
     override fun onDestroy() {
+        chat.shutdown()
         closePip()
         pipThread.quitSafely()
         super.onDestroy()
