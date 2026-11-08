@@ -1,4 +1,4 @@
-# RTMP Streamer (tipo Larix, gratis)
+# RTMP Streamer (gratis)
 
 App Android que transmite cámara y micrófono a cualquier servidor RTMP/RTMPS
 (Twitch, YouTube, Kick, nginx-rtmp, MediaMTX, OBS Studio server, etc.).
