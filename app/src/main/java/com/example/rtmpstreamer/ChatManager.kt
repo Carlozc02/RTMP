@@ -298,7 +298,20 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
         if (gen != myGen) return
         val url = "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679" +
             "?protocol=7&client=js&version=8.4.0-rc2&flash=false"
-        val ws = client.newWebSocket(
+        // Kick (Pusher) no contesta los pings de protocolo de OkHttp: se desactivan y se
+        // manda el ping propio de Pusher cada 30 s.
+        val kickClient = client.newBuilder().pingInterval(0, TimeUnit.SECONDS).build()
+        var alive = true
+        var socket: WebSocket? = null
+        val pinger = object : Runnable {
+            override fun run() {
+                if (alive && gen == myGen) {
+                    socket?.send("""{"event":"pusher:ping","data":{}}""")
+                    ui.postDelayed(this, 30000)
+                }
+            }
+        }
+        val ws = kickClient.newWebSocket(
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -306,6 +319,7 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
                         """{"event":"pusher:subscribe","data":{"auth":"","channel":"chatrooms.$id.v2"}}"""
                     )
                     sys("Kick: conectado a $slug (chat $id)")
+                    ui.postDelayed(pinger, 30000)
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -322,11 +336,20 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
                     } catch (_: Exception) {}
                 }
 
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    alive = false
+                }
+
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                    sys("Kick $slug: error (${t.message})")
+                    alive = false
+                    if (gen == myGen) {
+                        sys("Kick $slug: se cortó (${t.message}), reconectando...")
+                        ui.postDelayed({ openKick(slug, id, myGen) }, 5000)
+                    }
                 }
             }
         )
+        socket = ws
         sockets.add(ws)
     }
 
