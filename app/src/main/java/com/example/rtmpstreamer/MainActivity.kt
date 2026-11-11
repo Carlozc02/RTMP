@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -33,6 +34,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.pedro.common.ConnectChecker
+import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.input.gl.render.filters.`object`.SurfaceFilterRender
 import com.pedro.encoder.utils.gl.TranslateTo
 import com.pedro.library.rtmp.RtmpCamera2
@@ -50,6 +52,9 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     private lateinit var spRes: Spinner
     private lateinit var spFps: Spinner
     private lateinit var sbBitrate: SeekBar
+    private lateinit var btnMic: Button
+    private lateinit var btnCam: Button
+    private var blackFilter: ImageObjectFilterRender? = null   // tapa negra cuando la cámara está "apagada"
 
     // --- Chat overlay + voz ---
     private lateinit var chat: ChatManager
@@ -127,12 +132,55 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
 
         setupChat()
         setupDrawers()
+        setupMediaToggles()
 
         if (!hasPermissions()) requestAll()
     }
 
     // Menús laterales: se abren deslizando desde el borde o con los botones ☰ / 💬,
     // y se ocultan deslizando de vuelta, tocando fuera o con el botón Atrás.
+    // Micrófono y cámara: apagar/encender sin cortar la transmisión.
+    // Cámara apagada = se transmite pantalla negra (la cámara sigue abierta por dentro).
+    private fun setupMediaToggles() {
+        btnMic = findViewById(R.id.btnMic)
+        btnCam = findViewById(R.id.btnCam)
+        refreshToggles()
+        btnMic.setOnClickListener {
+            StreamHolder.micOn = !StreamHolder.micOn
+            applyMic()
+            refreshToggles()
+        }
+        btnCam.setOnClickListener {
+            StreamHolder.camOn = !StreamHolder.camOn
+            applyCam()
+            refreshToggles()
+        }
+    }
+
+    private fun refreshToggles() {
+        btnMic.text = if (StreamHolder.micOn) "🎤 ON" else "🔇 OFF"
+        btnCam.text = if (StreamHolder.camOn) "📷 ON" else "🚫 OFF"
+    }
+
+    private fun applyMic() {
+        if (!camera.isStreaming) return        // si aún no transmites, se aplica al iniciar
+        if (StreamHolder.micOn) camera.enableAudio() else camera.disableAudio()
+    }
+
+    private fun applyCam() {
+        blackFilter?.let { try { camera.getGlInterface().removeFilter(it) } catch (_: Throwable) {} }
+        blackFilter = null
+        if (!StreamHolder.camOn) {
+            val bmp = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).also { it.eraseColor(Color.BLACK) }
+            val f = ImageObjectFilterRender()
+            camera.getGlInterface().addFilter(f)
+            f.setImage(bmp)
+            f.setScale(100f, 100f)
+            f.setPosition(TranslateTo.CENTER)
+            blackFilter = f
+        }
+    }
+
     private fun setupDrawers() {
         val drawer = findViewById<DrawerLayout>(R.id.drawerLayout)
         drawer.setScrimColor(Color.TRANSPARENT)   // no oscurece el preview
@@ -248,6 +296,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         if (videoOk && audioOk) {
             ContextCompat.startForegroundService(this, Intent(this, StreamService::class.java))
             camera.startStream(url)
+            if (!StreamHolder.micOn) camera.disableAudio()
             btnStart.text = "Detener transmisión"
             tvStatus.text = "Conectando..."
         } else {
@@ -292,6 +341,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
         camera.getGlInterface().setFilter(filter)
         filter.setScale(30f, 30f)                       // % del tamaño del video
         filter.setPosition(TranslateTo.BOTTOM_RIGHT)
+        if (!StreamHolder.camOn) applyCam()   // setFilter borra la tapa negra: se vuelve a poner
     }
 
     private fun disableDual() {
@@ -401,6 +451,7 @@ class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback
     override fun surfaceCreated(holder: SurfaceHolder) {
         camera.replaceView(glView)   // (re)conecta la vista, p. ej. al volver de minimizar
         applyAspectMode()
+        if (!StreamHolder.camOn) applyCam()
         if (hasPermissions() && !camera.isOnPreview) camera.startPreview()
     }
 

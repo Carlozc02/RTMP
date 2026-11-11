@@ -99,6 +99,7 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
 
     fun connect(lines: List<String>) {
         disconnect()
+        sys("Chats v8")
         for (raw in lines) {
             val l = raw.trim()
             if (l.isEmpty()) continue
@@ -297,7 +298,7 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
     private fun openKick(slug: String, id: Long, myGen: Int) {
         if (gen != myGen) return
         val url = "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679" +
-            "?protocol=7&client=js&version=8.4.0-rc2&flash=false"
+            "?protocol=7&client=js&version=8.4.0&flash=false"
         // Kick (Pusher) no contesta los pings de protocolo de OkHttp: se desactivan y se
         // manda el ping propio de Pusher cada 30 s.
         val kickClient = client.newBuilder().pingInterval(0, TimeUnit.SECONDS).build()
@@ -315,10 +316,7 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
             Request.Builder().url(url).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    webSocket.send(
-                        """{"event":"pusher:subscribe","data":{"auth":"","channel":"chatrooms.$id.v2"}}"""
-                    )
-                    sys("Kick: conectado a $slug (chat $id)")
+                    sys("Kick: socket abierto, esperando confirmación...")
                     ui.postDelayed(pinger, 30000)
                 }
 
@@ -327,6 +325,12 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
                         val j = JSONObject(text)
                         when (j.optString("event")) {
                             "pusher:ping" -> webSocket.send("""{"event":"pusher:pong","data":{}}""")
+                            "pusher:connection_established" -> webSocket.send(
+                                """{"event":"pusher:subscribe","data":{"auth":"","channel":"chatrooms.$id.v2"}}"""
+                            )
+                            "pusher_internal:subscription_succeeded" ->
+                                sys("Kick: conectado a $slug (chat $id), esperando mensajes")
+                            "pusher:error" -> sys("Kick: error del servidor ${j.optString("data").take(120)}")
                             "App\\Events\\ChatMessageEvent" -> {
                                 val d = JSONObject(j.getString("data"))
                                 val user = d.getJSONObject("sender").getString("username")
@@ -334,6 +338,15 @@ class ChatManager(private val ctx: Context, private val onLine: (String) -> Unit
                             }
                         }
                     } catch (_: Exception) {}
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    alive = false
+                    webSocket.close(1000, null)
+                    if (gen == myGen) {
+                        sys("Kick: el servidor cerró la conexión ($code ${reason.take(60)}), reconectando...")
+                        ui.postDelayed({ openKick(slug, id, myGen) }, 5000)
+                    }
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {

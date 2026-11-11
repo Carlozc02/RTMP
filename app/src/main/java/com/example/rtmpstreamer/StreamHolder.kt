@@ -15,6 +15,10 @@ object StreamHolder {
     var camera: RtmpCamera2? = null
         private set
 
+    /** Estado de micrófono y cámara (se conserva aunque la pantalla se recree). */
+    @Volatile var micOn = true
+    @Volatile var camOn = true
+
     /** Quién recibe los eventos de conexión (la Activity, si está abierta). */
     @Volatile
     var checker: ConnectChecker? = null
@@ -47,6 +51,8 @@ object StreamHolder {
 
     fun release() {
         stopAll()
+        micOn = true
+        camOn = true
         camera = null
     }
 }
