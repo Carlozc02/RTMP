@@ -23,3 +23,29 @@ Solo se LEE el chat público: no se pide usuario ni contraseña.
 - TikTok: `https://www.tiktok.com/@usuario/live`. Solo hay chat MIENTRAS estás en vivo.
   Si falla en el teléfono, corre `tools/tiktok-bridge` en una PC/servidor y pega `ws://IP:8787`.
 
+## Usar tu servidor multichat (recomendado)
+En el menú de chats (💬) escribe en "Servidor multichat" la dirección de tu servidor, por ejemplo
+`http://192.168.1.50:3056`, y pega los links igual que siempre. Twitch, YouTube y TikTok los lee el
+servidor (ya no hace falta el puente `ws://...:8787`); Kick lo lee la app usando la llave e id que le da
+el servidor. Sin dirección de servidor, la app lee todo directo desde el teléfono.
+
+Ejemplo de la lista de chats con servidor (campo Servidor: `http://192.168.1.50:3056`):
+
+    twitch.tv/tio_carlo_zc
+    https://www.youtube.com/@tiocarlozc
+    https://www.tiktok.com/@tio_carlo_zc/live
+    kick:tio-carlo-zc#5848364
+
+El servidor solo admite 1 canal de Twitch y 1 usuario de TikTok (YouTube admite varios).
+
+## Cómo obtener el APK (sin instalar Android Studio)
+1. Crea un repositorio en GitHub y sube todo el contenido de esta carpeta.
+2. Ve a la pestaña **Actions** → **Build APK** → espera ~3 min.
+3. Descarga el artefacto **RtmpStreamer-debug-apk**, descomprímelo e instala `app-debug.apk`
+   (activa "instalar apps desconocidas" en tu teléfono).
+
+## Alternativa: Android Studio
+Abre la carpeta, espera el sync de Gradle y presiona Run / Build > Build APK.
+
+## Uso
+Pega la URL completa, por ejemplo `rtmp://tuservidor/live/miclave`, y toca **Iniciar transmisión**.
