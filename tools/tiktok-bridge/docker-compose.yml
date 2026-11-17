@@ -1,0 +1,10 @@
+services:
+  tiktok-bridge:
+    build: .
+    container_name: tiktok-bridge
+    restart: unless-stopped
+    environment:
+      TIKTOK_USER: tio_carlo_zc     # tu usuario de TikTok, sin @
+      # SESSION_ID: ""              # opcional, solo si faltan mensajes
+    ports:
+      - "8787:8787"
